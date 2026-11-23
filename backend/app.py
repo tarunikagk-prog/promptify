@@ -1,6 +1,6 @@
 import os
 import time
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from google import genai
 from .config import MODEL_TIERS
@@ -8,10 +8,18 @@ from .guardrails import scan_prompt
 from .router import select_model_tier
 from .telemetry import build_efficiency_report, compute_cost_usd, extract_usage_tokens
 
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+
 app = Flask(__name__)
 CORS(app)
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+def get_genai_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+    return genai.Client(api_key=api_key)
+
 
 session_stats = {
     "requests": 0,
@@ -23,7 +31,7 @@ session_stats = {
 }
 
 
-def refine_prompt(client_instance, sanitized_prompt: str) -> tuple[str, int, int, float]:
+def refine_prompt(sanitized_prompt: str) -> tuple[str, int, int, float]:
     rewrite_instruction = (
         "You are a prompt engineering assistant. Rewrite the user's prompt so it is specific, "
         "clear, and structured with helpful context, constraints, and expected output format "
@@ -33,6 +41,7 @@ def refine_prompt(client_instance, sanitized_prompt: str) -> tuple[str, int, int
     refiner_model = MODEL_TIERS["lightweight"]
 
     try:
+        client_instance = get_genai_client()
         resp = client_instance.models.generate_content(
             model=refiner_model["model_id"],
             contents=rewrite_instruction,
@@ -53,9 +62,19 @@ def refine_prompt(client_instance, sanitized_prompt: str) -> tuple[str, int, int
     return improved, in_tok, out_tok, cost
 
 
+@app.route("/", methods=["GET"])
+def serve_index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "Promptify"})
+    has_key = bool(os.environ.get("GEMINI_API_KEY"))
+    return jsonify({
+        "status": "ok",
+        "service": "Promptify",
+        "api_key_configured": has_key,
+    })
 
 
 @app.route("/api/process", methods=["POST"])
@@ -83,21 +102,19 @@ def process():
             "session": session_stats,
         })
 
-    improved_prompt, opt_in, opt_out, opt_cost = refine_prompt(
-        client, guardrail["sanitized_prompt"]
-    )
-
+    improved_prompt, opt_in, opt_out, opt_cost = refine_prompt(guardrail["sanitized_prompt"])
     tier_key, target_model, route_reason = select_model_tier(improved_prompt)
 
     try:
-        main_resp = client.models.generate_content(
+        client_instance = get_genai_client()
+        main_resp = client_instance.models.generate_content(
             model=target_model["model_id"],
             contents=improved_prompt,
         )
         answer = (main_resp.text or "").strip()
         exec_in, exec_out = extract_usage_tokens(main_resp, improved_prompt, answer)
     except Exception as exc:
-        answer = f"Model call fallback ({exc}). Set GEMINI_API_KEY for live responses."
+        answer = f"Model call error ({exc}). Check GEMINI_API_KEY in Render Environment Variables."
         exec_in, exec_out = extract_usage_tokens(None, improved_prompt, answer)
 
     elapsed_ms = (time.perf_counter() - start) * 1000
@@ -160,4 +177,5 @@ def fairness_audit():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
