@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Promptify — Responsible AI & Resource Optimization</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            obsidian: '#070D0A',
+            panel: '#0D1612',
+            emeraldline: 'rgba(16, 185, 129, 0.18)',
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-obsidian text-slate-100 min-h-screen flex flex-col">
+  <header class="border-b border-emeraldline bg-panel px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 font-bold">
+        P
+      </div>
+      <div>
+        <h1 class="text-base font-semibold tracking-tight text-white">Promptify</h1>
+        <p class="text-xs text-slate-400">Responsible AI & Resource Optimization</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-xs font-mono">
+      <div class="px-3 py-1.5 rounded-md bg-obsidian border border-emeraldline">
+        API: <span id="api-status" class="text-amber-300">Checking...</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-md bg-obsidian border border-emeraldline">
+        Net Saved: <span id="hdr-savings" class="text-emerald-400">$0.000000</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-md bg-obsidian border border-emeraldline">
+        Tokens: <span id="hdr-tokens" class="text-slate-200">0</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 flex flex-col md:flex-row">
+    <aside class="w-full md:w-80 border-b md:border-b-0 md:border-r border-emeraldline bg-panel p-4 flex flex-col gap-5">
+      <div>
+        <label for="prompt-input" class="block text-xs font-medium uppercase tracking-wider text-slate-400 mb-2">
+          Prompt Entry
+        </label>
+        <textarea
+          id="prompt-input"
+          rows="4"
+          placeholder="Enter a general prompt (e.g., explain microservices vs monolith)..."
+          class="w-full rounded-lg bg-obsidian border border-emeraldline p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+        ></textarea>
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          <button type="button" onclick="setPreset('explain cloud storage simply')" class="text-[11px] px-2 py-1 rounded bg-obsidian border border-emeraldline text-slate-300 hover:border-emerald-400">
+            Simple Prompt
+          </button>
+          <button type="button" onclick="setPreset('compare SQL and NoSQL trade-offs, architecture design, and scaling edge cases')" class="text-[11px] px-2 py-1 rounded bg-obsidian border border-emeraldline text-slate-300 hover:border-emerald-400">
+            Complex Prompt
+          </button>
+          <button type="button" onclick="setPreset('email me at alex.test@example.com or call 555-234-5678 about my project')" class="text-[11px] px-2 py-1 rounded bg-obsidian border border-emeraldline text-slate-300 hover:border-emerald-400">
+            PII Check
+          </button>
+        </div>
+        <button
+          id="run-btn"
+          type="button"
+          onclick="submitPrompt()"
+          class="mt-3 w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition cursor-pointer"
+        >
+          Refine & Route Prompt
+        </button>
+      </div>
+
+      <nav class="flex flex-col gap-1">
+        <span class="text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">Views</span>
+        <button data-tab="router" onclick="switchTab('router')" class="tab-btn text-left px-3 py-2 rounded-lg text-sm bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
+          1. Suggested Model & Output
+        </button>
+        <button data-tab="efficiency" onclick="switchTab('efficiency')" class="tab-btn text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-obsidian">
+          2. Efficiency & Cost Breakdown
+        </button>
+        <button data-tab="fairness" onclick="switchTab('fairness')" class="tab-btn text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-obsidian">
+          3. Bias & Fairness Audit
+        </button>
+        <button data-tab="explain" onclick="switchTab('explain')" class="tab-btn text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-obsidian">
+          4. Prompt Refinement & Guardrails
+        </button>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-6 overflow-y-auto">
+      <section id="view-router" class="tab-view space-y-5 max-w-4xl">
+        <div class="rounded-xl bg-panel border border-emeraldline p-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-xs uppercase tracking-wider text-emerald-400 font-medium">Recommended Model</p>
+              <h2 id="model-name" class="text-2xl font-bold text-white mt-1">Awaiting Prompt</h2>
+              <p id="model-tier" class="text-xs text-slate-400 font-mono mt-0.5">—</p>
+            </div>
+            <span id="guardrail-badge" class="px-3 py-1 rounded-full text-xs font-mono bg-slate-800 text-slate-300">
+              GUARDRAIL: IDLE
+            </span>
+          </div>
+          <p id="routing-reason" class="text-sm text-slate-300 mt-3">
+            Enter a prompt on the left to generate a refined version, route it to a model tier, and inspect real token efficiency.
+          </p>
+        </div>
+
+        <div class="rounded-xl bg-panel border border-emeraldline p-5">
+          <h3 class="text-xs uppercase tracking-wider text-emerald-400 font-medium mb-2">Refined Prompt</h3>
+          <pre id="refined-box" class="whitespace-pre-wrap text-sm text-slate-200 font-sans leading-relaxed">No refined prompt yet.</pre>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="rounded-xl bg-panel border border-emeraldline p-4">
+            <p class="text-xs text-slate-400">Actual Cost</p>
+            <p id="card-cost" class="text-xl font-mono font-semibold text-white mt-1">$0.000000</p>
+          </div>
+          <div class="rounded-xl bg-panel border border-emeraldline p-4">
+            <p class="text-xs text-slate-400">Frontier Baseline</p>
+            <p id="card-baseline" class="text-xl font-mono font-semibold text-slate-300 mt-1">$0.000000</p>
+          </div>
+          <div class="rounded-xl bg-panel border border-emeraldline p-4">
+            <p class="text-xs text-slate-400">Latency</p>
+            <p id="card-latency" class="text-xl font-mono font-semibold text-emerald-300 mt-1">0 ms</p>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-panel border border-emeraldline p-5">
+          <h3 class="text-sm font-semibold text-white mb-2">Model Response</h3>
+          <pre id="response-box" class="whitespace-pre-wrap text-sm text-slate-200 font-sans leading-relaxed">No output yet.</pre>
+        </div>
+      </section>
+
+      <section id="view-efficiency" class="tab-view hidden space-y-5 max-w-4xl">
+        <div class="rounded-xl bg-panel border border-emeraldline p-5">
+          <h2 class="text-lg font-semibold text-white mb-3">Token & Cost Accounting</h2>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm font-mono">
+            <div class="p-3 rounded-lg bg-obsidian border border-emeraldline">
+              <div class="text-xs text-slate-400">Refiner In / Out</div>
+              <div id="eff-opt-tok" class="mt-1 text-white">0 / 0</div>
+            </div>
+            <div class="p-3 rounded-lg bg-obsidian border border-emeraldline">
+              <div class="text-xs text-slate-400">Exec In / Out</div>
+              <div id="eff-exec-tok" class="mt-1 text-white">0 / 0</div>
+            </div>
+            <div class="p-3 rounded-lg bg-obsidian border border-emeraldline">
+              <div class="text-xs text-slate-400">Savings vs Frontier</div>
+              <div id="eff-sav-pct" class="mt-1 text-emerald-400">0.0%</div>
+            </div>
+            <div class="p-3 rounded-lg bg-obsidian border border-emeraldline">
+              <div class="text-xs text-slate-400">Throughput</div>
+              <div id="eff-tps" class="mt-1 text-white">0 tok/s</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-panel border border-emeraldline p-5">
+          <h3 class="text-sm font-semibold text-white mb-3">Session Run Log</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead class="text-slate-400 border-b border-emeraldline">
+                <tr>
+                  <th class="py-2 pr-3">#</th>
+                  <th class="py-2 pr-3">Model</th>
+                  <th class="py-2 pr-3">Tokens</th>
+                  <th class="py-2 pr-3">Actual ($)</th>
+                  <th class="py-2 pr-3">Saved ($)</th>
+                  <th class="py-2">Latency</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody" class="divide-y divide-emeraldline/40 text-slate-200">
+                <tr><td colspan="6" class="py-3 text-slate-500">No requests run yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-fairness" class="tab-view hidden space-y-5 max-w-4xl">
+        <div class="rounded-xl bg-panel border border-emeraldline p-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Fairness Evaluation</h2>
+            <p class="text-xs text-slate-400">Run cohort parity and impact checks on sample evaluation data.</p>
+          </div>
+          <button type="button" onclick="runAudit()" class="px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 cursor-pointer">
+            Run Fairness Audit
+          </button>
+        </div>
+        <div id="audit-results" class="rounded-xl bg-panel border border-emeraldline p-5 text-sm text-slate-300">
+          Click "Run Fairness Audit" to load metrics.
+        </div>
+      </section>
+
+      <section id="view-explain" class="tab-view hidden space-y-5 max-w-4xl">
+        <div class="rounded-xl bg-panel border border-emeraldline p-5 space-y-4">
+          <h2 class="text-lg font-semibold text-white">Before & After Prompt Refinement</h2>
+          <div>
+            <p class="text-xs text-slate-400 uppercase mb-1">Sanitized Input</p>
+            <div id="exp-sanitized" class="p-3 rounded-lg bg-obsidian border border-emeraldline text-sm text-slate-300">—</div>
+          </div>
+          <div>
+            <p class="text-xs text-emerald-400 uppercase mb-1">Refined Prompt Sent to Model</p>
+            <div id="exp-improved" class="p-3 rounded-lg bg-obsidian border border-emeraldline text-sm text-white">—</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+
+    function setPreset(text) {
+      document.getElementById('prompt-input').value = text;
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`view-${tabName}`).classList.remove('hidden');
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        btn.className = active
+          ? 'tab-btn text-left px-3 py-2 rounded-lg text-sm bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
+          : 'tab-btn text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-obsidian';
+      });
+    }
+
+    async function checkHealth() {
+      const el = document.getElementById('api-status');
+      try {
+        const res = await fetch(`${API_BASE}/api/health`);
+        if (res.ok) {
+          el.textContent = 'ONLINE';
+          el.className = 'text-emerald-400';
+          return;
+        }
+      } catch (_) {}
+      el.textContent = 'OFFLINE';
+      el.className = 'text-rose-400';
+    }
+
+    function renderSession(session) {
+      if (!session) return;
+      document.getElementById('hdr-savings').textContent = `$${Number(session.net_savings_usd || 0).toFixed(6)}`;
+      document.getElementById('hdr-tokens').textContent = Number(session.total_tokens || 0).toLocaleString();
+
+      const tbody = document.getElementById('history-tbody');
+      if (!session.history || session.history.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-3 text-slate-500">No requests run yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = session.history.slice().reverse().map(row => `
+        <tr>
+          <td class="py-2 pr-3">${row.run}</td>
+          <td class="py-2 pr-3">${row.model}</td>
+          <td class="py-2 pr-3">${row.tokens}</td>
+          <td class="py-2 pr-3">$${Number(row.actual_cost_usd).toFixed(6)}</td>
+          <td class="py-2 pr-3 text-emerald-400">$${Number(row.net_savings_usd).toFixed(6)}</td>
+          <td class="py-2">${row.latency_ms} ms</td>
+        </tr>
+      `).join('');
+    }
+
+    async function submitPrompt() {
+      const prompt = document.getElementById('prompt-input').value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('run-btn');
+      btn.disabled = true;
+      btn.textContent = 'Refining & Routing...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        const data = await res.json();
+
+        const model = data.selected_model;
+        document.getElementById('model-name').textContent = model ? model.display_name : 'Blocked';
+        document.getElementById('model-tier').textContent = model ? `${model.tier} (${model.model_id})` : 'Safety Policy';
+        document.getElementById('routing-reason').textContent = data.routing_reason || '';
+        document.getElementById('refined-box').textContent = data.improved_prompt || 'Not generated (blocked by guardrail).';
+
+        const gStatus = data.guardrail?.status || 'PASS';
+        const badge = document.getElementById('guardrail-badge');
+        badge.textContent = `GUARDRAIL: ${gStatus}`;
+        badge.className = gStatus === 'FLAGGED'
+          ? 'px-3 py-1 rounded-full text-xs font-mono bg-rose-500/20 text-rose-300 border border-rose-400/30'
+          : 'px-3 py-1 rounded-full text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30';
+
+        const eff = data.efficiency || {};
+        document.getElementById('card-cost').textContent = `$${Number(eff.total_actual_cost_usd || 0).toFixed(6)}`;
+        document.getElementById('card-baseline').textContent = `$${Number(eff.frontier_baseline_cost_usd || 0).toFixed(6)}`;
+        document.getElementById('card-latency').textContent = `${eff.latency_ms ?? 0} ms`;
+        document.getElementById('response-box').textContent = data.response || '';
+
+        document.getElementById('eff-opt-tok').textContent = `${eff.optimizer?.input_tokens ?? 0} / ${eff.optimizer?.output_tokens ?? 0}`;
+        document.getElementById('eff-exec-tok').textContent = `${eff.execution?.input_tokens ?? 0} / ${eff.execution?.output_tokens ?? 0}`;
+        document.getElementById('eff-sav-pct').textContent = `${eff.savings_vs_frontier_pct ?? 0}%`;
+        document.getElementById('eff-tps').textContent = `${eff.tokens_per_sec ?? 0} tok/s`;
+
+        document.getElementById('exp-sanitized').textContent = data.sanitized_prompt || '—';
+        document.getElementById('exp-improved').textContent = data.improved_prompt || 'Blocked before refinement.';
+
+        renderSession(data.session);
+      } catch (err) {
+        document.getElementById('response-box').textContent = `Request error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Refine & Route Prompt';
+      }
+    }
+
+    async function runAudit() {
+      const box = document.getElementById('audit-results');
+      box.textContent = 'Running fairness checks...';
+      try {
+        const res = await fetch(`${API_BASE}/api/audit/fairness`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataset: 'Evaluation Cohort Sample v1.0' }),
+        });
+        const audit = await res.json();
+        const rows = (audit.metrics || []).map(m => `
+          <div class="flex items-center justify-between py-2 border-b border-emeraldline/40">
+            <span>${m.metric} <span class="text-xs text-slate-400">(${m.threshold})</span></span>
+            <span class="font-mono text-emerald-400">${m.value} · ${m.status}</span>
+          </div>
+        `).join('');
+        box.innerHTML = `<div class="text-xs text-slate-400 mb-2">Dataset: ${audit.dataset}</div>${rows}`;
+      } catch (err) {
+        box.textContent = `Audit error: ${err.message}`;
+      }
+    }
+
+    checkHealth();
+  </script>
+</body>
+</html>
